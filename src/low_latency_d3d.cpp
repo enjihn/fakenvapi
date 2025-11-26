@@ -32,6 +32,17 @@ bool LowLatency::update_low_latency_tech(IUnknown* pDevice) {
             delete currently_active_tech;
         }
 
+        if (Config::get().get_force_xell()) {
+            currently_active_tech = new XeLL();
+            if (currently_active_tech->init(pDevice)) {
+                spdlog::info("LowLatency algo: XeLL (forced)");
+                active_tech_mutex.unlock();
+                return true;
+            }
+
+            delete currently_active_tech;
+        }
+
         if (!Config::get().get_force_latencyflex()) {
             currently_active_tech = new AntiLag2();
             if (currently_active_tech->init(pDevice)) {
@@ -42,14 +53,16 @@ bool LowLatency::update_low_latency_tech(IUnknown* pDevice) {
             
             delete currently_active_tech;
 
-            currently_active_tech = new XeLL();
-            if (currently_active_tech->init(pDevice)) {
-                spdlog::info("LowLatency algo: XeLL");
-                active_tech_mutex.unlock();
-                return true;
+            if (!Config::get().get_force_xell()) {
+                currently_active_tech = new XeLL();
+                if (currently_active_tech->init(pDevice)) {
+                    spdlog::info("LowLatency algo: XeLL");
+                    active_tech_mutex.unlock();
+                    return true;
+                }
+                
+                delete currently_active_tech;
             }
-            
-            delete currently_active_tech;
         }
 
         currently_active_tech = new LatencyFlex();
@@ -63,9 +76,12 @@ bool LowLatency::update_low_latency_tech(IUnknown* pDevice) {
     active_tech_mutex.unlock();
 
     static bool last_force_latencyflex = Config::get().get_force_latencyflex();
+    static bool last_force_xell = Config::get().get_force_xell();
     bool force_latencyflex = Config::get().get_force_latencyflex();
-    bool change_detected = last_force_latencyflex != force_latencyflex;
+    bool force_xell = Config::get().get_force_xell();
+    bool change_detected = last_force_latencyflex != force_latencyflex || last_force_xell != force_xell;
     last_force_latencyflex = force_latencyflex;
+    last_force_xell = force_xell;
     
     auto try_reinit = [&]() -> bool {
         if (!deinit_current_tech()) {
