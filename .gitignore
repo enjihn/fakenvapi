@@ -5,3 +5,4 @@ useful/
 .vs/
 build_testing.bat
 testing.sh
+_codeql_detected_source_root

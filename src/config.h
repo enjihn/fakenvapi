@@ -22,6 +22,7 @@ class Config {
     bool _enable_logs = true;
     bool _enable_trace_logs = false;
     bool _force_latencyflex = false;
+    bool _force_xell = false;
     LFXMode _latencyflex_mode = LFXMode::Conservative;
     ForceReflex _force_reflex = ForceReflex::InGame;
     bool _save_pcl_to_file = false;
@@ -49,6 +50,7 @@ class Config {
         _enable_logs       = get_config(L"fakenvapi", L"enable_logs",       true);
         _enable_trace_logs = get_config(L"fakenvapi", L"enable_trace_logs", false);
         _force_latencyflex = get_config(L"fakenvapi", L"force_latencyflex", false);
+        _force_xell        = get_config(L"fakenvapi", L"force_xell",        false);
         _save_pcl_to_file  = get_config(L"fakenvapi", L"save_pcl_to_file",  false);
 
         auto latencyflex_mode   = get_config(L"fakenvapi", L"latencyflex_mode",  (int)LFXMode::Conservative);
@@ -74,6 +76,7 @@ class Config {
         // TODO: make it a function
         spdlog::info("Config enable_trace_logs: {}", _enable_trace_logs ? "true" : "false");
         spdlog::info("Config force_latencyflex: {}", _force_latencyflex ? "true" : "false");
+        spdlog::info("Config force_xell: {}", _force_xell ? "true" : "false");
         spdlog::info("Config force_reflex: {}", (int)_force_reflex);
         spdlog::info("Config lfx_mode: {}", (int)_latencyflex_mode);
         spdlog::info("Config save_pcl_to_file: {}", _save_pcl_to_file ? "true" : "false");
@@ -150,6 +153,10 @@ public:
 
     bool get_force_latencyflex() {
         return _force_latencyflex;
+    }
+
+    bool get_force_xell() {
+        return _force_xell;
     }
 
     LFXMode get_latencyflex_mode() {
