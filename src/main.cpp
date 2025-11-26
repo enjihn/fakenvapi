@@ -119,7 +119,7 @@ namespace fakenvapi {
 }
 
 extern "C" {
-    __declspec(dllexport) void* __cdecl nvapi_QueryInterface(NvU32 id) {
+    void* __cdecl nvapi_QueryInterface(NvU32 id) {
         auto entry = registry.find(id);
         if (entry != registry.end())
             return entry->second;
