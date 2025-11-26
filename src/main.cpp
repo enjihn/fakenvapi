@@ -107,50 +107,52 @@ NVAPI_INTERFACE_TABLE additional_interface_table[] = {
     { "NvAPI_SK_5", 0x932ac8fb }
 };
 
+// Static registry for caching interface lookups - needs to be outside namespace for proper linkage
+static std::unordered_map<NvU32, void*> registry;
+
 namespace fakenvapi {
-    extern "C" {
-        NvAPI_Status __cdecl placeholder() {
-            // return OK();
-            // return ERROR(NVAPI_NO_IMPLEMENTATION);
-            return NVAPI_NO_IMPLEMENTATION; // no logging
+    NvAPI_Status __cdecl placeholder() {
+        // return OK();
+        // return ERROR(NVAPI_NO_IMPLEMENTATION);
+        return NVAPI_NO_IMPLEMENTATION; // no logging
+    }
+}
+
+extern "C" {
+    __declspec(dllexport) void* __cdecl nvapi_QueryInterface(NvU32 id) {
+        auto entry = registry.find(id);
+        if (entry != registry.end())
+            return entry->second;
+
+        constexpr auto original_size = sizeof(nvapi_interface_table)/sizeof(nvapi_interface_table[0]);
+        constexpr auto additional_size = sizeof(additional_interface_table)/sizeof(additional_interface_table[0]);
+        constexpr auto fakenvapi_size = sizeof(fakenvapi_interface_table)/sizeof(fakenvapi_interface_table[0]);
+
+        constexpr auto total_size = original_size + additional_size + fakenvapi_size;
+
+        struct NVAPI_INTERFACE_TABLE extended_interface_table[total_size] {};
+        memcpy(extended_interface_table, nvapi_interface_table, sizeof(nvapi_interface_table)); // copy original table
+
+        for (unsigned int i = 0; i < additional_size; i++) {
+            extended_interface_table[original_size + i] = additional_interface_table[i];
         }
 
-        static std::unordered_map<NvU32, void*> registry;
+        for (unsigned int i = 0; i < fakenvapi_size; i++) {
+            extended_interface_table[original_size + additional_size + i].func = fakenvapi_interface_table[i].func;
+            extended_interface_table[original_size + additional_size + i].id = fakenvapi_interface_table[i].id;
+        }
 
-        __declspec(dllexport) void* __cdecl nvapi_QueryInterface(NvU32 id) {
-            auto entry = registry.find(id);
-            if (entry != registry.end())
-                return entry->second;
+        auto it = std::find_if(
+            std::begin(extended_interface_table),
+            std::end(extended_interface_table),
+            [id](const auto& item) { return item.id == id; });
 
-            constexpr auto original_size = sizeof(nvapi_interface_table)/sizeof(nvapi_interface_table[0]);
-            constexpr auto additional_size = sizeof(additional_interface_table)/sizeof(additional_interface_table[0]);
-            constexpr auto fakenvapi_size = sizeof(fakenvapi_interface_table)/sizeof(fakenvapi_interface_table[0]);
+        if (it == std::end(extended_interface_table)) {
+            spdlog::debug("NvAPI_QueryInterface (0x{:x}): Unknown interface ID", id);
+            return registry.insert({ id, nullptr }).first->second;
+        }
 
-            constexpr auto total_size = original_size + additional_size + fakenvapi_size;
-
-            struct NVAPI_INTERFACE_TABLE extended_interface_table[total_size] {};
-            memcpy(extended_interface_table, nvapi_interface_table, sizeof(nvapi_interface_table)); // copy original table
-
-            for (unsigned int i = 0; i < additional_size; i++) {
-                extended_interface_table[original_size + i] = additional_interface_table[i];
-            }
-
-            for (unsigned int i = 0; i < fakenvapi_size; i++) {
-                extended_interface_table[original_size + additional_size + i].func = fakenvapi_interface_table[i].func;
-                extended_interface_table[original_size + additional_size + i].id = fakenvapi_interface_table[i].id;
-            }
-
-            auto it = std::find_if(
-                std::begin(extended_interface_table),
-                std::end(extended_interface_table),
-                [id](const auto& item) { return item.id == id; });
-
-            if (it == std::end(extended_interface_table)) {
-                spdlog::debug("NvAPI_QueryInterface (0x{:x}): Unknown interface ID", id);
-                return registry.insert({ id, nullptr }).first->second;
-            }
-
-            INSERT_AND_RETURN_WHEN_EQUALS(NvAPI_Initialize)
+        INSERT_AND_RETURN_WHEN_EQUALS(NvAPI_Initialize)
             INSERT_AND_RETURN_WHEN_EQUALS(NvAPI_GetInterfaceVersionString)
             INSERT_AND_RETURN_WHEN_EQUALS(NvAPI_EnumNvidiaDisplayHandle)
             INSERT_AND_RETURN_WHEN_EQUALS(NvAPI_GetLogicalGPUFromPhysicalGPU)
@@ -232,8 +234,7 @@ namespace fakenvapi {
             INSERT_AND_RETURN_WHEN_EQUALS(Fake_SetLowLatencyCtx)
 
             spdlog::debug("{}: not implemented, placeholder given", it->func);
-            return registry.insert({ id, (void*)placeholder }).first->second;
+            return registry.insert({ id, (void*)fakenvapi::placeholder }).first->second;
             // return registry.insert({ id, nullptr }).first->second;
         }
-    }
 }
