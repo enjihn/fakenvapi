@@ -24,5 +24,6 @@ shared_library(
     name_prefix: '',
     dependencies: [fakenvapi_version_dep, lib_dxgi, lib_detours],
     include_directories: [fakenvapi_headers, nvapi_headers, spdlog_headers, xell_headers, detours_headers, vulkan_headers, magic_enum_headers],
+    vs_module_defs: 'nvapi' + target_suffix + '.def',
     install: true,
 )
