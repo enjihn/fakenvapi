@@ -23,7 +23,7 @@ class Config {
     bool _enable_trace_logs = false;
     bool _force_latencyflex = false;
     // force_xell:
-    //   0 = normal behavior, but never fall back to LatencyFlex if XeLL or AntiLag2 are available.
+    //   0 = normal behavior: prefer XeLL > AntiLag2, fall back to LatencyFlex if neither available.
     //   1 = prefer XeLL whenever XeLL is available, fall back to AntiLag2 if XeLL is not available, never use LatencyFlex.
     //   2 = XeLL only, if XeLL is not available then do not use any low latency backend at all (no AntiLag2, no LatencyFlex).
     int _force_xell = 0;

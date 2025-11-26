@@ -31,7 +31,7 @@ bool LowLatency::update_low_latency_tech(HANDLE vkDevice) {
             currently_active_tech = new AntiLagVk();
             if (currently_active_tech->init(nullptr)) {
                 if (force_xell == 1)
-                    spdlog::info("LowLatency algo: AntiLag Vulkan (force_xell=1, XeLL fallback)");
+                    spdlog::info("LowLatency algo: AntiLag Vulkan (force_xell=1)");
                 else
                     spdlog::info("LowLatency algo: AntiLag Vulkan");
                 active_tech_mutex.unlock();
