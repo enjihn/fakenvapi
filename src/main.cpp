@@ -43,8 +43,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
         }
 
         spdlog::critical("fakenvapi version: {}", FAKENVAPI_VERSION);
+        spdlog::critical("FAKENVAPI CUSTOM BUILD: XELL_PREFERRED v1");
         spdlog::info("Config enable_trace_logs: {}", Config::get().get_enable_trace_logs() ? "true" : "false");
         spdlog::info("Config force_latencyflex: {}", Config::get().get_force_latencyflex() ? "true" : "false");
+        spdlog::info("Config force_xell: {}", Config::get().get_force_xell());
         spdlog::info("Config force_reflex: {}", (int)Config::get().get_force_reflex());
         spdlog::info("Config lfx_mode: {}", (int)Config::get().get_latencyflex_mode());
         spdlog::info("Config save_pcl_to_file: {}", Config::get().get_save_pcl_to_file() ? "true" : "false");

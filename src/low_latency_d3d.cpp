@@ -12,6 +12,7 @@ bool LowLatency::update_low_latency_tech(IUnknown* pDevice) {
     active_tech_mutex.lock();
 
     if (!currently_active_tech) {
+        // Handle forced context (from OptiScaler etc)
         if (forced_low_latency_context && forced_low_latency_tech == Mode::AntiLag2) {
             currently_active_tech = new AntiLag2();
             if (currently_active_tech->init_using_ctx(forced_low_latency_context)) {
@@ -32,40 +33,96 @@ bool LowLatency::update_low_latency_tech(IUnknown* pDevice) {
             delete currently_active_tech;
         }
 
-        if (!Config::get().get_force_latencyflex()) {
-            currently_active_tech = new AntiLag2();
+        // Get force_xell config value:
+        // 0 = normal behavior, prefer XeLL > AntiLag2, only fall back to LatencyFlex if neither available
+        // 1 = prefer XeLL, then AntiLag2, never LatencyFlex
+        // 2 = XeLL only, if XeLL not available then no backend at all
+        int force_xell = Config::get().get_force_xell();
+        bool force_latencyflex = Config::get().get_force_latencyflex();
+
+        // Handle force_xell == 2: XeLL only mode
+        if (force_xell == 2) {
+            currently_active_tech = new XeLL();
             if (currently_active_tech->init(pDevice)) {
-                spdlog::info("LowLatency algo: AntiLag 2");
+                spdlog::info("LowLatency algo: XeLL (force_xell=2)");
                 active_tech_mutex.unlock();
                 return true;
             }
-            
+            delete currently_active_tech;
+            currently_active_tech = nullptr;
+            // No fallback - return true (no backend selected intentionally)
+            spdlog::info("LowLatency algo: None (force_xell=2, XeLL not available)");
+            active_tech_mutex.unlock();
+            return true;
+        }
+
+        // Handle force_xell == 1: XeLL preferred, then AntiLag2, never LatencyFlex
+        if (force_xell == 1) {
+            currently_active_tech = new XeLL();
+            if (currently_active_tech->init(pDevice)) {
+                spdlog::info("LowLatency algo: XeLL (force_xell=1)");
+                active_tech_mutex.unlock();
+                return true;
+            }
             delete currently_active_tech;
 
+            currently_active_tech = new AntiLag2();
+            if (currently_active_tech->init(pDevice)) {
+                spdlog::info("LowLatency algo: AntiLag 2 (force_xell=1, XeLL fallback)");
+                active_tech_mutex.unlock();
+                return true;
+            }
+            delete currently_active_tech;
+            currently_active_tech = nullptr;
+            // No fallback to LatencyFlex
+            spdlog::info("LowLatency algo: None (force_xell=1, no XeLL or AntiLag2)");
+            active_tech_mutex.unlock();
+            return true;
+        }
+
+        // Handle force_xell == 0: Normal behavior
+        // Priority: XeLL > AntiLag2 > LatencyFlex (only if XeLL and AntiLag2 are unavailable)
+        // force_latencyflex bypasses XeLL/AntiLag2 and uses LatencyFlex directly
+        if (!force_latencyflex) {
+            // Try XeLL first
             currently_active_tech = new XeLL();
             if (currently_active_tech->init(pDevice)) {
                 spdlog::info("LowLatency algo: XeLL");
                 active_tech_mutex.unlock();
                 return true;
             }
-            
+            delete currently_active_tech;
+
+            // Try AntiLag2 second
+            currently_active_tech = new AntiLag2();
+            if (currently_active_tech->init(pDevice)) {
+                spdlog::info("LowLatency algo: AntiLag 2");
+                active_tech_mutex.unlock();
+                return true;
+            }
             delete currently_active_tech;
         }
 
+        // Fall back to LatencyFlex only if force_latencyflex or neither XeLL nor AntiLag2 available
         currently_active_tech = new LatencyFlex();
         if (currently_active_tech->init(pDevice)) {
             spdlog::info("LowLatency algo: LatencyFlex");
             active_tech_mutex.unlock();
             return true;
         }
+        delete currently_active_tech;
+        currently_active_tech = nullptr;
     }
 
     active_tech_mutex.unlock();
 
     static bool last_force_latencyflex = Config::get().get_force_latencyflex();
+    static int last_force_xell = Config::get().get_force_xell();
     bool force_latencyflex = Config::get().get_force_latencyflex();
-    bool change_detected = last_force_latencyflex != force_latencyflex;
+    int force_xell = Config::get().get_force_xell();
+    bool change_detected = last_force_latencyflex != force_latencyflex || last_force_xell != force_xell;
     last_force_latencyflex = force_latencyflex;
+    last_force_xell = force_xell;
     
     auto try_reinit = [&]() -> bool {
         if (!deinit_current_tech()) {

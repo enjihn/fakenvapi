@@ -1,29 +1,40 @@
-name: Build on Linux
+name: Build fakenvapi nvapi64.dll
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          submodules: recursive
-          fetch-depth: 0
+          python-version: "3.12"
+
+      - name: Install Meson and Ninja
+        run: |
+          pip install meson ninja
+
+      - name: Configure build (MSVC)
+        shell: pwsh
+        run: |
+          meson setup builddir --buildtype=release
 
       - name: Build
-        uses: Joshua-Ashton/arch-mingw-github-action@9cdb815264bce7a6346927521b176f578982679d
-        with:
-          command: |
-            ./package-release.sh master build
+        run: |
+          meson compile -C builddir
 
-      - name: Create tarball
-        run: tar cvfz "fakenvapi.tar.gz" -C "./build/fakenvapi-master" .
-
-      - name: Upload artifacts
+      - name: Upload nvapi64.dll
         uses: actions/upload-artifact@v4
         with:
-          name: fakenvapi-${{ github.ref_name }}
-          path: build/fakenvapi-master
+          name: fakenvapi-nvapi64
+          path: builddir/nvapi64.dll
