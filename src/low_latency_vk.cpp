@@ -11,10 +11,29 @@ bool LowLatency::update_low_latency_tech(HANDLE vkDevice) {
     active_tech_mutex.lock();
 
     if (!currently_active_tech) {
-        if (!Config::get().get_force_latencyflex()) {
+        // Get force_xell config value (for Vulkan, XeLL is not available, so we just apply the policy to AntiLagVk)
+        // 0 = normal behavior, prefer AntiLagVk, only fall back to LatencyFlex if unavailable
+        // 1 = prefer XeLL (N/A for Vulkan), then AntiLagVk, never LatencyFlex
+        // 2 = XeLL only (N/A for Vulkan), no backend at all
+        int force_xell = Config::get().get_force_xell();
+        bool force_latencyflex = Config::get().get_force_latencyflex();
+
+        // Handle force_xell == 2: XeLL only mode (XeLL not available in Vulkan, so no backend)
+        if (force_xell == 2) {
+            currently_active_tech = nullptr;
+            spdlog::info("LowLatency algo: None (force_xell=2, XeLL not available for Vulkan)");
+            active_tech_mutex.unlock();
+            return true;
+        }
+
+        // Handle force_xell == 1 or 0: Try AntiLagVk first (unless force_latencyflex)
+        if (!force_latencyflex) {
             currently_active_tech = new AntiLagVk();
             if (currently_active_tech->init(nullptr)) {
-                spdlog::info("LowLatency algo: AntiLag Vulkan");
+                if (force_xell == 1)
+                    spdlog::info("LowLatency algo: AntiLag Vulkan (force_xell=1, XeLL fallback)");
+                else
+                    spdlog::info("LowLatency algo: AntiLag Vulkan");
                 active_tech_mutex.unlock();
                 return true;
             }
@@ -22,20 +41,34 @@ bool LowLatency::update_low_latency_tech(HANDLE vkDevice) {
             delete currently_active_tech;
         }
 
+        // If force_xell == 1, do not fall back to LatencyFlex
+        if (force_xell == 1) {
+            currently_active_tech = nullptr;
+            spdlog::info("LowLatency algo: None (force_xell=1, no XeLL or AntiLag)");
+            active_tech_mutex.unlock();
+            return true;
+        }
+
+        // Fall back to LatencyFlex only if force_latencyflex or AntiLagVk unavailable
         currently_active_tech = new LatencyFlex();
         if (currently_active_tech->init(nullptr)) {
             spdlog::info("LowLatency algo: LatencyFlex");
             active_tech_mutex.unlock();
             return true;
         }
+        delete currently_active_tech;
+        currently_active_tech = nullptr;
     }
 
     active_tech_mutex.unlock();
     
     static bool last_force_latencyflex = Config::get().get_force_latencyflex();
+    static int last_force_xell = Config::get().get_force_xell();
     bool force_latencyflex = Config::get().get_force_latencyflex();
-    bool change_detected = last_force_latencyflex != force_latencyflex;
+    int force_xell = Config::get().get_force_xell();
+    bool change_detected = last_force_latencyflex != force_latencyflex || last_force_xell != force_xell;
     last_force_latencyflex = force_latencyflex;
+    last_force_xell = force_xell;
     
     if (change_detected) {
         if (deinit_current_tech()) {
