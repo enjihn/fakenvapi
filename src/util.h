@@ -11,7 +11,7 @@ void tonvss(NvAPI_ShortString nvss, std::string str);
 
 #define INSERT_AND_RETURN_WHEN_EQUALS(method) \
     if (std::string(it->func) == #method)     \
-        return registry.insert({id, (void *)method}).first->second;
+        return registry.insert({id, (void *)fakenvapi::method}).first->second;
 
 static inline uint64_t get_timestamp() {
     FILETIME fileTime;
