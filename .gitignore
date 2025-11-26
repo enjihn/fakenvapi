@@ -4,4 +4,4 @@ useful/
 .vscode/
 .vs/
 build_testing.bat
-testing.sh
+testing.sh_codeql*
